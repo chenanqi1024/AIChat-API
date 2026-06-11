@@ -1,0 +1,3 @@
+-r LoginService/requirements.txt
+-r ChatService/requirements.txt
+pytest>=8.0.0,<9.0.0

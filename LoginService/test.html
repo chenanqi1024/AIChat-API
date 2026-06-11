@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AIChat API 联调</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #172033;
+      background: #eef2f7;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 32px 16px; }
+    main { width: min(780px, 100%); margin: auto; }
+    h1 { margin: 0; font-size: 28px; }
+    .subtitle { margin: 8px 0 24px; color: #667085; }
+    .card {
+      margin-bottom: 16px;
+      padding: 20px;
+      border: 1px solid #dbe2ea;
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 12px 30px rgb(29 41 57 / 7%);
+    }
+    .status-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 11px;
+      border-radius: 999px;
+      background: #f2f4f7;
+      color: #475467;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .badge.ok { background: #ecfdf3; color: #027a48; }
+    .badge.error { background: #fef3f2; color: #b42318; }
+    label {
+      display: block;
+      margin: 15px 0 6px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #cfd8e3;
+      border-radius: 9px;
+      background: #fff;
+      font: inherit;
+      outline: none;
+    }
+    textarea { min-height: 110px; resize: vertical; }
+    input:focus, textarea:focus, select:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgb(37 99 235 / 12%);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 12px;
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+    button {
+      padding: 11px 16px;
+      border: 0;
+      border-radius: 9px;
+      background: #2563eb;
+      color: #fff;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button.secondary { background: #475467; }
+    button:disabled { cursor: wait; opacity: .55; }
+    .notice {
+      margin-top: 14px;
+      padding: 11px 13px;
+      border-radius: 9px;
+      background: #fffaeb;
+      color: #93370d;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    #message { min-height: 22px; margin-top: 15px; font-weight: 700; }
+    #message.ok { color: #027a48; }
+    #message.error { color: #b42318; }
+    #chatMessage { min-height: 22px; margin-top: 15px; font-weight: 700; }
+    #chatMessage.ok { color: #027a48; }
+    #chatMessage.error { color: #b42318; }
+    .check-line {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 15px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .check-line input { width: auto; }
+    .answer {
+      min-height: 90px;
+      margin-top: 15px;
+      padding: 14px;
+      border: 1px solid #dbe2ea;
+      border-radius: 10px;
+      background: #f8fafc;
+      white-space: pre-wrap;
+      line-height: 1.65;
+    }
+    pre {
+      min-height: 200px;
+      max-height: 480px;
+      overflow: auto;
+      margin: 12px 0 0;
+      padding: 15px;
+      border-radius: 10px;
+      background: #101828;
+      color: #d1fadf;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    @media (max-width: 560px) {
+      body { padding: 20px 12px; }
+      .grid { grid-template-columns: 1fr; gap: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>LoginService 测试</h1>
+    <p class="subtitle">测试短信登录、JWT 鉴权、预设角色与 Qwen 流式聊天。</p>
+
+    <section class="card">
+      <div class="status-row">
+        <strong>线上服务状态</strong>
+        <span id="serviceBadge" class="badge">正在检查...</span>
+      </div>
+      <label for="apiBase">API 地址</label>
+      <input id="apiBase" value="https://aichat-login-kemznyglgb.cn-hangzhou.fcapp.run">
+      <div class="actions">
+        <button id="checkButton" class="secondary" type="button">重新检查服务</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <strong>验证码登录测试</strong>
+      <div class="grid">
+        <div>
+          <label for="countryCode">国家代码</label>
+          <input id="countryCode" value="86" inputmode="numeric">
+        </div>
+        <div>
+          <label for="phoneNumber">你的手机号</label>
+          <input id="phoneNumber" placeholder="请输入真实测试手机号" inputmode="tel" autocomplete="tel">
+        </div>
+      </div>
+      <label for="verifyCode">收到的验证码</label>
+      <input id="verifyCode" placeholder="发送成功后输入短信验证码" inputmode="numeric" autocomplete="one-time-code">
+      <div class="notice">
+        “发送验证码”会真实调用阿里云号码验证服务并可能产生短信费用。页面没有预填参考手机号。
+      </div>
+      <div class="actions">
+        <button id="sendButton" type="button">发送验证码</button>
+        <button id="loginButton" type="button">校验验证码并登录</button>
+      </div>
+      <div id="message"></div>
+    </section>
+
+    <section class="card">
+      <div class="status-row">
+        <strong>ChatService / Qwen 测试</strong>
+        <span id="chatBadge" class="badge">正在检查...</span>
+      </div>
+      <label for="chatApiBase">Chat API 地址</label>
+      <input id="chatApiBase" value="https://aichat-chat-nitnspniec.cn-hangzhou.fcapp.run">
+      <label for="roleId">角色</label>
+      <select id="roleId">
+        <option value="1">奶糖</option>
+        <option value="2">晚晴</option>
+        <option value="3">曜川</option>
+        <option value="4">小芙</option>
+      </select>
+      <label for="userMessage">消息</label>
+      <textarea id="userMessage" placeholder="输入要发送给 Qwen 的消息"></textarea>
+      <label for="image">图片（可选，JPEG/PNG/WebP）</label>
+      <input id="image" type="file" accept="image/jpeg,image/png,image/webp">
+      <label class="check-line">
+        <input id="stream" type="checkbox" checked>
+        使用流式响应
+      </label>
+      <div class="notice">
+        请先完成短信登录。聊天请求会携带登录返回的 JWT，并真实调用 Qwen、数据库及可能的天气 API。
+      </div>
+      <div class="actions">
+        <button id="checkChatButton" class="secondary" type="button">检查 ChatService</button>
+        <button id="chatButton" type="button">发送消息</button>
+      </div>
+      <div id="chatMessage"></div>
+      <div id="answer" class="answer">等待聊天...</div>
+    </section>
+
+    <section class="card">
+      <strong>最近一次请求与响应</strong>
+      <pre id="log">等待操作...</pre>
+    </section>
+  </main>
+
+  <script>
+    const EXPECTED_VERSION = "2026.06.11-dbdiag.1";
+    const EXPECTED_CHAT_VERSION = "2026.06.10-auth-chat.1";
+    let accessToken = sessionStorage.getItem("aichatAccessToken") || "";
+    const el = Object.fromEntries(
+      ["apiBase", "countryCode", "phoneNumber", "verifyCode", "checkButton",
+        "sendButton", "loginButton", "serviceBadge", "message", "log",
+        "chatApiBase", "roleId", "userMessage", "image", "stream",
+        "checkChatButton", "chatButton", "chatBadge", "chatMessage", "answer"]
+        .map(id => [id, document.getElementById(id)])
+    );
+
+    function baseUrl() {
+      return el.apiBase.value.trim().replace(/\/+$/, "");
+    }
+
+    function setMessage(text, ok) {
+      el.message.textContent = text;
+      el.message.className = ok ? "ok" : "error";
+    }
+
+    function setChatMessage(text, ok) {
+      el.chatMessage.textContent = text;
+      el.chatMessage.className = ok ? "ok" : "error";
+    }
+
+    function chatBaseUrl() {
+      return el.chatApiBase.value.trim().replace(/\/+$/, "");
+    }
+
+    function setBusy(button, busy) {
+      button.disabled = busy;
+    }
+
+    function redactForLog(value) {
+      if (value == null) return value;
+      return JSON.parse(JSON.stringify(value, (key, item) => {
+        if (key === "accessToken") return "<redacted>";
+        if (key === "verifyCode" || key === "VerifyCode") return "<redacted>";
+        if (key === "image") return "<base64 image omitted>";
+        if ((key === "phoneNumber" || key === "PhoneNumber") && typeof item === "string") {
+          return item.length >= 7 ? `${item.slice(0, 3)}****${item.slice(-4)}` : "<redacted>";
+        }
+        return item;
+      }));
+    }
+
+    function loginBody(includeCode) {
+      const body = {
+        CountryCode: el.countryCode.value.trim(),
+        PhoneNumber: el.phoneNumber.value.trim()
+      };
+      if (includeCode) body.VerifyCode = el.verifyCode.value.trim();
+      return body;
+    }
+
+    function validateInput(includeCode) {
+      if (!/^1[3-9]\d{9}$/.test(el.phoneNumber.value.trim())) {
+        throw new Error("请输入正确的中国大陆手机号");
+      }
+      if (includeCode && !/^[0-9A-Za-z]{4,8}$/.test(el.verifyCode.value.trim())) {
+        throw new Error("请输入 4 至 8 位验证码");
+      }
+    }
+
+    async function request(path, options = {}) {
+      const url = `${baseUrl()}${path}`;
+      const requestBody = options.body ? JSON.parse(options.body) : null;
+      el.log.textContent = JSON.stringify({
+        request: { url, method: options.method || "GET", body: redactForLog(requestBody) }
+      }, null, 2);
+
+      const response = await fetch(url, options);
+      const raw = await response.text();
+      let body;
+      try { body = JSON.parse(raw); } catch { body = raw; }
+
+      el.log.textContent = JSON.stringify({
+        request: { url, method: options.method || "GET", body: requestBody },
+        response: {
+          status: response.status,
+          ok: response.ok,
+          version: response.headers.get("X-LoginService-Version"),
+          body: redactForLog(body)
+        }
+      }, null, 2);
+
+      if (!response.ok || body?.success === false) {
+        throw new Error(body?.message || `请求失败：HTTP ${response.status}`);
+      }
+      return body;
+    }
+
+    function post(path, body) {
+      return request(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+    }
+
+    async function checkChatService() {
+      setBusy(el.checkChatButton, true);
+      el.chatBadge.textContent = "正在检查...";
+      el.chatBadge.className = "badge";
+      try {
+        const healthResponse = await fetch(`${chatBaseUrl()}/health`);
+        const health = await healthResponse.json();
+        if (!healthResponse.ok || !health.success) throw new Error("ChatService 健康检查失败");
+
+        const rolesResponse = await fetch(`${chatBaseUrl()}/roles`);
+        const roles = await rolesResponse.json();
+        el.log.textContent = JSON.stringify({
+          request: { url: `${chatBaseUrl()}/roles`, method: "GET" },
+          response: { status: rolesResponse.status, body: roles }
+        }, null, 2);
+        if (!rolesResponse.ok || !roles.success) throw new Error(roles.message || "角色接口失败");
+        el.roleId.innerHTML = roles.data.roles
+          .map(role => `<option value="${role.id}">${role.nickname}</option>`)
+          .join("");
+        const version = health.version || rolesResponse.headers.get("X-ChatService-Version");
+        const versionOk = !version || version === EXPECTED_CHAT_VERSION;
+        el.chatBadge.textContent = versionOk ? `需要 JWT · ${version || "已连接"}` : `已连接 · ${version}`;
+        el.chatBadge.className = "badge ok";
+        setChatMessage(accessToken ? "已加载本次会话的 JWT，可以测试聊天" : "请先完成短信登录", !!accessToken);
+      } catch (error) {
+        el.chatBadge.textContent = "连接失败";
+        el.chatBadge.className = "badge error";
+        setChatMessage(error.message, false);
+      } finally {
+        setBusy(el.checkChatButton, false);
+      }
+    }
+
+    function fileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        if (!file) return resolve(null);
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("图片读取失败"));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function buildChatPayload() {
+      const userContent = el.userMessage.value.trim();
+      const image = await fileAsDataUrl(el.image.files[0]);
+      if (!userContent && !image) throw new Error("请输入聊天消息或选择图片");
+      const payload = {
+        roleId: Number(el.roleId.value),
+        message: userContent,
+        stream: el.stream.checked
+      };
+      if (image) payload.image = image;
+      return payload;
+    }
+
+    async function sendChat() {
+      try {
+        if (!accessToken) throw new Error("请先完成短信登录");
+        const payload = await buildChatPayload();
+        setBusy(el.chatButton, true);
+        el.answer.textContent = "";
+        setChatMessage("正在请求 Qwen...", true);
+        const url = `${chatBaseUrl()}/chat`;
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessToken}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const raw = await response.text();
+          let errorBody;
+          try { errorBody = JSON.parse(raw); } catch { errorBody = raw; }
+          el.log.textContent = JSON.stringify({
+            request: { url, method: "POST", body: redactForLog(payload) },
+            response: { status: response.status, body: redactForLog(errorBody) }
+          }, null, 2);
+          throw new Error(errorBody?.message || `聊天请求失败：HTTP ${response.status}`);
+        }
+
+        if (!payload.stream) {
+          const body = await response.json();
+          el.answer.textContent = body.data?.assistantMessage?.content || JSON.stringify(body, null, 2);
+          el.log.textContent = JSON.stringify({
+            request: { url, method: "POST", body: redactForLog(payload) },
+            response: { status: response.status, body: redactForLog(body) }
+          }, null, 2);
+          setChatMessage("聊天请求成功", true);
+          return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let answer = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+            const data = trimmed.slice(5).trim();
+            if (!data || data === "[DONE]") continue;
+            try {
+              const chunk = JSON.parse(data);
+              if (chunk.code) throw new Error(chunk.message || chunk.code);
+              answer += chunk.content || "";
+              if (chunk.assistantMessage?.content) answer = chunk.assistantMessage.content;
+              el.answer.textContent = answer;
+            } catch (error) {
+              if (error instanceof SyntaxError) continue;
+              throw error;
+            }
+          }
+          if (done) break;
+        }
+        el.log.textContent = JSON.stringify({
+          request: { url, method: "POST", body: redactForLog(payload) },
+          response: { status: response.status, streamedText: answer }
+        }, null, 2);
+        setChatMessage("流式聊天完成", true);
+      } catch (error) {
+        setChatMessage(error.message, false);
+        if (!el.answer.textContent) el.answer.textContent = "请求失败，请查看提示和日志。";
+      } finally {
+        setBusy(el.chatButton, false);
+      }
+    }
+
+    async function checkService() {
+      setBusy(el.checkButton, true);
+      el.serviceBadge.textContent = "正在检查...";
+      el.serviceBadge.className = "badge";
+      try {
+        const result = await request("/health/config");
+        const ready = result.success && result.checks?.loginReady;
+        const versionOk = result.version === EXPECTED_VERSION;
+        el.serviceBadge.textContent = ready && versionOk
+          ? `正常 · ${result.version}`
+          : `需检查 · ${result.version || "未知版本"}`;
+        el.serviceBadge.className = ready && versionOk ? "badge ok" : "badge error";
+        setMessage(
+          ready && versionOk ? "线上服务与配置正常" : "请查看下方响应日志",
+          ready && versionOk
+        );
+      } catch (error) {
+        el.serviceBadge.textContent = "连接失败";
+        el.serviceBadge.className = "badge error";
+        setMessage(error.message, false);
+      } finally {
+        setBusy(el.checkButton, false);
+      }
+    }
+
+    el.checkButton.addEventListener("click", checkService);
+    el.checkChatButton.addEventListener("click", checkChatService);
+    el.chatButton.addEventListener("click", sendChat);
+
+    el.sendButton.addEventListener("click", async () => {
+      try {
+        validateInput(false);
+        if (!confirm(`确定向 ${el.phoneNumber.value.trim()} 发送验证码吗？`)) return;
+        setBusy(el.sendButton, true);
+        const result = await post("/send-code", loginBody(false));
+        setMessage(result.message || "验证码已发送", true);
+        el.verifyCode.focus();
+      } catch (error) {
+        setMessage(error.message, false);
+      } finally {
+        setBusy(el.sendButton, false);
+      }
+    });
+
+    el.loginButton.addEventListener("click", async () => {
+      try {
+        validateInput(true);
+        setBusy(el.loginButton, true);
+        const result = await post("/login", loginBody(true));
+        accessToken = result.data?.accessToken || "";
+        if (!accessToken) throw new Error("登录响应中没有 accessToken");
+        sessionStorage.setItem("aichatAccessToken", accessToken);
+        setMessage(`${result.message || "登录成功"}，JWT 已保存到本次浏览器会话`, true);
+        setChatMessage("已取得 JWT，可以测试聊天", true);
+      } catch (error) {
+        setMessage(error.message, false);
+      } finally {
+        setBusy(el.loginButton, false);
+      }
+    });
+
+    checkService();
+    checkChatService();
+  </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+[
+  "tests/test_chat_service.py::test_chat_rejects_legacy_messages_contract",
+  "tests/test_chat_service.py::test_expired_token_has_stable_error",
+  "tests/test_chat_service.py::test_history_pagination_and_clear",
+  "tests/test_chat_service.py::test_image_validation_accepts_data_url_and_rejects_bad_type",
+  "tests/test_chat_service.py::test_non_stream_chat_uses_business_contract",
+  "tests/test_chat_service.py::test_non_stream_weather_tool_call_is_hidden",
+  "tests/test_chat_service.py::test_protected_endpoint_requires_token",
+  "tests/test_chat_service.py::test_qweather_gzip_city_lookup_and_weather",
+  "tests/test_chat_service.py::test_roles_are_public_and_do_not_expose_prompt",
+  "tests/test_chat_service.py::test_stream_chat_emits_business_sse",
+  "tests/test_chat_service.py::test_valid_token_loads_active_user",
+  "tests/test_chat_service.py::test_valid_token_rejects_disabled_user",
+  "tests/test_login_service.py::test_health_config_requires_database_and_jwt",
+  "tests/test_login_service.py::test_login_rejects_disabled_user",
+  "tests/test_login_service.py::test_login_rejects_invalid_code_without_provider_call",
+  "tests/test_login_service.py::test_login_returns_jwt"
+]

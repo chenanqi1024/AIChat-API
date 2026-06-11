@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AIChat API 前端接入文档</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "PingFang SC", system-ui, sans-serif; color: #e8eefc; background: #090c15; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #090c15; }
+    aside { position: fixed; inset: 0 auto 0 0; width: 260px; padding: 28px 20px; border-right: 1px solid #283149; background: #0d1120; overflow: auto; }
+    aside h1 { margin: 0 0 8px; font-size: 20px; }
+    aside p { margin: 0 0 20px; color: #98a5c0; font-size: 12px; line-height: 1.5; }
+    nav a { display: block; margin: 4px 0; padding: 8px 10px; border-radius: 8px; color: #bdc8df; text-decoration: none; font-size: 13px; }
+    nav a:hover { background: #202943; color: #fff; }
+    main { width: min(1050px, calc(100% - 300px)); margin-left: 280px; padding: 42px 20px 80px; }
+    h1 { font-size: 36px; } h2 { margin-top: 48px; padding-bottom: 10px; border-bottom: 1px solid #29324a; } h3 { margin-top: 32px; color: #c8d5f0; }
+    p, li { color: #b7c2d8; line-height: 1.75; }
+    code { padding: 2px 5px; border-radius: 5px; background: #202840; color: #d8e2fa; }
+    pre { overflow: auto; padding: 16px; border: 1px solid #283149; border-radius: 12px; background: #070a12; color: #b9f4dc; line-height: 1.55; }
+    pre code { padding: 0; background: transparent; color: inherit; }
+    table { width: 100%; border-collapse: collapse; margin: 14px 0 24px; font-size: 14px; }
+    th, td { padding: 11px 12px; border: 1px solid #2a344d; text-align: left; vertical-align: top; }
+    th { background: #192137; color: #e8eefc; } td { color: #b7c2d8; }
+    blockquote { margin: 18px 0; padding: 12px 15px; border-left: 4px solid #806dff; background: #151a2c; color: #b9c6df; }
+    .hero { padding: 24px; border: 1px solid #303a55; border-radius: 18px; background: linear-gradient(135deg, rgba(111,88,238,.18), rgba(38,176,137,.1)); }
+    .method { display: inline-block; min-width: 58px; margin-right: 7px; padding: 3px 7px; border-radius: 6px; background: #3157d5; color: #fff; text-align: center; font-size: 12px; font-weight: 800; }
+    .delete { background: #af3d55; } .public { color: #72e9b7; } .auth { color: #f4ca6e; }
+    @media (max-width: 820px) { aside { position: static; width: auto; } main { width: auto; margin: 0; padding: 24px 14px 60px; } nav { display: none; } }
+  </style>
+</head>
+<body>
+<aside>
+  <h1>AIChat API</h1>
+  <p>前端接入文档<br>更新于 2026-06-11</p>
+  <nav>
+    <a href="#overview">服务与流程</a>
+    <a href="#common">通用约定</a>
+    <a href="#send-code">发送验证码</a>
+    <a href="#login">验证码登录</a>
+    <a href="#roles">获取角色</a>
+    <a href="#chat">LLM 聊天</a>
+    <a href="#sse">SSE 流式协议</a>
+    <a href="#history">聊天历史</a>
+    <a href="#clear">清空聊天</a>
+    <a href="#errors">错误码</a>
+    <a href="#types">TypeScript 类型</a>
+  </nav>
+</aside>
+<main>
+  <section class="hero" id="overview">
+    <h1>AIChat API 前端接入文档</h1>
+    <p>两个独立云函数：LoginService 负责短信登录和 JWT，ChatService 负责角色、聊天、天气和历史。</p>
+    <table>
+      <tr><th>服务</th><th>Base URL</th><th>线上版本</th></tr>
+      <tr><td>LoginService</td><td><code>https://aichat-login-kemznyglgb.cn-hangzhou.fcapp.run</code></td><td><code>2026.06.10-jwt.1</code></td></tr>
+      <tr><td>ChatService</td><td><code>https://aichat-chat-nitnspniec.cn-hangzhou.fcapp.run</code></td><td><code>2026.06.10-auth-chat.1</code></td></tr>
+    </table>
+  </section>
+
+  <h2>接入流程</h2>
+  <ol><li>发送短信验证码。</li><li>验证码登录并保存 JWT。</li><li>公开获取角色。</li><li>携带 JWT 聊天、读取历史或清空聊天。</li></ol>
+  <pre><code>Authorization: Bearer &lt;accessToken&gt;</code></pre>
+
+  <h2 id="common">通用约定</h2>
+  <p>JSON 请求使用 <code>Content-Type: application/json</code>。前端应使用稳定的 <code>code</code> 判断错误。</p>
+  <pre><code>{
+  "success": false,
+  "code": "INVALID_INPUT",
+  "message": "中文错误说明",
+  "details": {}
+}</code></pre>
+
+  <h2>LoginService</h2>
+  <h3 id="send-code"><span class="method">POST</span>/send-code <span class="public">无需 JWT</span></h3>
+  <table><tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr><tr><td><code>countryCode</code></td><td>string</td><td>否</td><td>默认 86，当前仅支持中国大陆</td></tr><tr><td><code>phoneNumber</code></td><td>string</td><td>是</td><td>中国大陆手机号</td></tr></table>
+  <pre><code>{
+  "countryCode": "86",
+  "phoneNumber": "13800138000"
+}</code></pre>
+  <pre><code>{
+  "success": true,
+  "message": "验证码已发送",
+  "data": {
+    "bizId": "provider-biz-id",
+    "expiresIn": 300,
+    "retryAfter": 60
+  }
+}</code></pre>
+
+  <h3 id="login"><span class="method">POST</span>/login <span class="public">无需 JWT</span></h3>
+  <table><tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr><tr><td><code>countryCode</code></td><td>string</td><td>否</td><td>默认 86</td></tr><tr><td><code>phoneNumber</code></td><td>string</td><td>是</td><td>中国大陆手机号</td></tr><tr><td><code>verifyCode</code></td><td>string</td><td>是</td><td>4 至 8 位数字或字母</td></tr></table>
+  <pre><code>{
+  "countryCode": "86",
+  "phoneNumber": "13800138000",
+  "verifyCode": "1234"
+}</code></pre>
+  <pre><code>{
+  "success": true,
+  "message": "登录成功",
+  "data": {
+    "accessToken": "&lt;JWT&gt;",
+    "tokenType": "Bearer",
+    "expiresIn": 2592000,
+    "user": {
+      "id": 1,
+      "countryCode": "86",
+      "phoneNumber": "13800138000"
+    }
+  }
+}</code></pre>
+
+  <h2>ChatService</h2>
+  <h3 id="roles"><span class="method">GET</span>/roles <span class="public">无需 JWT</span></h3>
+  <pre><code>{
+  "success": true,
+  "data": {
+    "roles": [{
+      "id": 1,
+      "key": "naitang",
+      "nickname": "奶糖",
+      "description": "猫咪系陪伴角色",
+      "avatarUrl": "https://...",
+      "backgroundUrl": "https://..."
+    }]
+  }
+}</code></pre>
+
+  <h3 id="chat"><span class="method">POST</span>/chat <span class="auth">需要 JWT</span></h3>
+  <table><tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr><tr><td><code>roleId</code></td><td>number</td><td>是</td><td>角色 ID</td></tr><tr><td><code>message</code></td><td>string</td><td>条件必填</td><td>与 image 至少提供一个</td></tr><tr><td><code>image</code></td><td>string</td><td>条件必填</td><td>JPEG/PNG/WebP Base64 Data URL，默认最大 6MB</td></tr><tr><td><code>stream</code></td><td>boolean</td><td>否</td><td>默认 true</td></tr></table>
+  <pre><code>{
+  "roleId": 1,
+  "message": "杭州今天天气怎么样？",
+  "stream": true
+}</code></pre>
+  <blockquote>客户端不能提交完整 messages、系统 Prompt 或模型名。图片不持久化，也不会进入下一轮上下文。</blockquote>
+
+  <h3>非流式响应</h3>
+  <pre><code>{
+  "success": true,
+  "data": {
+    "conversationId": 10,
+    "roleId": 1,
+    "userMessage": {"id": 20, "sender": "user", "content": "你好"},
+    "assistantMessage": {"id": 21, "sender": "assistant", "content": "你好呀，喵。"},
+    "usage": {"total_tokens": 120}
+  }
+}</code></pre>
+
+  <h3 id="sse">SSE 流式协议</h3>
+  <pre><code>event: start
+data: {"conversationId":10,"roleId":1,"userMessage":{"id":20,"sender":"user","content":"你好"}}
+
+event: delta
+data: {"content":"你好呀"}
+
+event: done
+data: {"assistantMessage":{"id":21,"sender":"assistant","content":"你好呀，喵。"},"usage":{"total_tokens":120}}
+
+event: error
+data: {"code":"CHAT_SERVICE_ERROR","message":"聊天服务暂时不可用"}</code></pre>
+  <p>POST SSE 不能使用浏览器原生 EventSource，应使用 <code>fetch</code> 和 <code>response.body.getReader()</code> 读取。</p>
+
+  <h3 id="history"><span class="method">GET</span>/history <span class="auth">需要 JWT</span></h3>
+  <pre><code>GET /history?roleId=1&amp;beforeId=20&amp;limit=50</code></pre>
+  <table><tr><th>字段</th><th>说明</th></tr><tr><td><code>roleId</code></td><td>必填，角色 ID</td></tr><tr><td><code>beforeId</code></td><td>可选，加载此 ID 之前的更早消息</td></tr><tr><td><code>limit</code></td><td>默认 50，最大 100</td></tr></table>
+  <pre><code>{
+  "success": true,
+  "data": {
+    "conversationId": 10,
+    "roleId": 1,
+    "messages": [{"id":20,"sender":"user","content":"你好","createdAt":"2026-06-11T02:00:00.000Z"}],
+    "hasMore": true,
+    "nextBeforeId": 20
+  }
+}</code></pre>
+
+  <h3 id="clear"><span class="method delete">DELETE</span>/history?roleId=1 <span class="auth">需要 JWT</span></h3>
+  <pre><code>{
+  "success": true,
+  "data": {
+    "conversationId": 10,
+    "roleId": 1,
+    "deletedCount": 12
+  }
+}</code></pre>
+  <blockquote>只清空当前 JWT 用户与指定角色的聊天。前端必须进行二次确认。</blockquote>
+
+  <h2 id="errors">常用错误码</h2>
+  <table><tr><th>code</th><th>前端处理</th></tr><tr><td><code>AUTH_REQUIRED</code></td><td>跳转登录页</td></tr><tr><td><code>INVALID_TOKEN</code></td><td>清除 Token 并重新登录</td></tr><tr><td><code>TOKEN_EXPIRED</code></td><td>提示登录过期并重新登录</td></tr><tr><td><code>USER_DISABLED</code></td><td>提示账号不可用</td></tr><tr><td><code>INVALID_INPUT</code></td><td>提示参数错误</td></tr><tr><td><code>ROLE_NOT_FOUND</code></td><td>刷新角色列表</td></tr><tr><td><code>DATABASE_ERROR</code></td><td>提示稍后重试</td></tr><tr><td><code>QWEN_API_ERROR</code></td><td>提示模型服务异常</td></tr><tr><td><code>CHAT_SERVICE_ERROR</code></td><td>提示聊天服务异常</td></tr></table>
+
+  <h2 id="types">TypeScript 类型参考</h2>
+  <pre><code>interface ChatRole {
+  id: number;
+  key: string;
+  nickname: string;
+  description: string;
+  avatarUrl: string;
+  backgroundUrl: string;
+}
+
+type MessageSender = "user" | "assistant";
+
+interface ChatMessage {
+  id: number;
+  sender: MessageSender;
+  content: string;
+  createdAt?: string;
+}</code></pre>
+
+  <h2>当前能力边界</h2>
+  <ul><li>仅支持中国大陆手机号。</li><li>没有刷新 Token、注销账号和退出登录服务端接口。</li><li>每位用户对每个角色只有一份持续聊天。</li><li>不支持自定义角色或多会话。</li><li>图片不持久化。</li><li>天气由模型自动调用，仅支持实时天气。</li></ul>
+</main>
+</body>
+</html>

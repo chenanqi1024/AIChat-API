@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AIChat 登录服务测试</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      color: #eef2ff;
+      background: #080b16;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: 40px 18px;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(124, 92, 255, .22), transparent 34%),
+        radial-gradient(circle at 85% 35%, rgba(40, 206, 170, .14), transparent 30%),
+        #080b16;
+    }
+    main { width: min(920px, 100%); margin: auto; }
+    header { margin-bottom: 28px; }
+    h1 { margin: 0; font-size: clamp(28px, 5vw, 46px); letter-spacing: -.04em; }
+    .subtitle { margin: 10px 0 0; color: #a8b1c7; line-height: 1.7; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .card {
+      padding: 22px;
+      border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 20px;
+      background: rgba(18, 23, 42, .82);
+      box-shadow: 0 22px 70px rgba(0, 0, 0, .28);
+      backdrop-filter: blur(18px);
+    }
+    .wide { grid-column: 1 / -1; }
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    h2 { margin: 0; font-size: 18px; }
+    .badge {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #28304a;
+      color: #cbd3e8;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .badge.ok { color: #73f1c3; background: rgba(25, 169, 122, .18); }
+    .badge.error { color: #ff9eaa; background: rgba(221, 65, 83, .18); }
+    label { display: block; margin: 14px 0 7px; color: #cbd3e8; font-size: 13px; font-weight: 700; }
+    input {
+      width: 100%;
+      padding: 12px 13px;
+      border: 1px solid #303955;
+      border-radius: 11px;
+      background: #0c1122;
+      color: #f4f6ff;
+      font: inherit;
+      outline: none;
+    }
+    input:focus { border-color: #816cff; box-shadow: 0 0 0 3px rgba(129, 108, 255, .18); }
+    .row { display: grid; grid-template-columns: 110px 1fr; gap: 10px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    button {
+      padding: 11px 15px;
+      border: 0;
+      border-radius: 11px;
+      background: linear-gradient(135deg, #836fff, #6655e8);
+      color: white;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button.secondary { background: #28304a; color: #dbe2f5; }
+    button:disabled { opacity: .5; cursor: wait; }
+    .message { min-height: 22px; margin-top: 14px; color: #a8b1c7; font-size: 14px; line-height: 1.6; }
+    .message.ok { color: #73f1c3; }
+    .message.error { color: #ff9eaa; }
+    .notice {
+      margin-top: 14px;
+      padding: 11px 13px;
+      border: 1px solid rgba(250, 191, 64, .22);
+      border-radius: 11px;
+      background: rgba(250, 191, 64, .08);
+      color: #f4cc77;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .checks { display: grid; gap: 9px; }
+    .check {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 11px;
+      background: #0c1122;
+      color: #cbd3e8;
+      font-size: 13px;
+    }
+    .check strong.ok { color: #73f1c3; }
+    .check strong.error { color: #ff9eaa; }
+    pre {
+      max-height: 420px;
+      overflow: auto;
+      margin: 0;
+      padding: 15px;
+      border-radius: 12px;
+      background: #070a13;
+      color: #b9f5df;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    @media (max-width: 720px) {
+      body { padding: 24px 12px; }
+      .grid { grid-template-columns: 1fr; }
+      .wide { grid-column: auto; }
+      .row { grid-template-columns: 1fr; gap: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>LoginService 测试台</h1>
+      <p class="subtitle">连接已部署的 AIChat 登录云函数，检查配置、发送短信验证码、登录并验证 JWT 内容。</p>
+    </header>
+
+    <div class="grid">
+      <section class="card wide">
+        <div class="card-head">
+          <h2>线上服务</h2>
+          <span id="serviceBadge" class="badge">正在检查</span>
+        </div>
+        <label for="apiBase">LoginService 地址</label>
+        <input id="apiBase" value="https://aichat-login-kemznyglgb.cn-hangzhou.fcapp.run">
+        <div class="actions">
+          <button id="checkButton" class="secondary" type="button">重新检查</button>
+        </div>
+        <div id="serviceMessage" class="message"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>配置检查</h2></div>
+        <div id="checks" class="checks"><div class="message">等待检查...</div></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>短信登录</h2></div>
+        <div class="row">
+          <div>
+            <label for="countryCode">国家代码</label>
+            <input id="countryCode" value="86" inputmode="numeric">
+          </div>
+          <div>
+            <label for="phoneNumber">手机号</label>
+            <input id="phoneNumber" placeholder="请输入真实测试手机号" inputmode="tel" autocomplete="tel">
+          </div>
+        </div>
+        <label for="verifyCode">验证码</label>
+        <input id="verifyCode" placeholder="收到短信后填写" inputmode="numeric" autocomplete="one-time-code">
+        <div class="notice">发送验证码会真实调用阿里云号码认证服务，并可能产生短信费用。</div>
+        <div class="actions">
+          <button id="sendButton" class="secondary" type="button">发送验证码</button>
+          <button id="loginButton" type="button">登录并获取 JWT</button>
+        </div>
+        <div id="loginMessage" class="message"></div>
+      </section>
+
+      <section class="card wide">
+        <div class="card-head"><h2>JWT 检查</h2><span id="jwtBadge" class="badge">尚未登录</span></div>
+        <pre id="jwtOutput">登录成功后，这里会显示脱敏后的响应与 JWT Payload。</pre>
+      </section>
+
+      <section class="card wide">
+        <div class="card-head"><h2>最近请求日志</h2></div>
+        <pre id="log">等待操作...</pre>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const EXPECTED_VERSION = "2026.06.10-jwt.1";
+    const el = Object.fromEntries(
+      ["apiBase", "serviceBadge", "serviceMessage", "checkButton", "checks",
+       "countryCode", "phoneNumber", "verifyCode", "sendButton", "loginButton",
+       "loginMessage", "jwtBadge", "jwtOutput", "log"]
+        .map(id => [id, document.getElementById(id)])
+    );
+
+    function baseUrl() {
+      return el.apiBase.value.trim().replace(/\/+$/, "");
+    }
+
+    function setMessage(target, text, ok) {
+      target.textContent = text;
+      target.className = `message ${ok === true ? "ok" : ok === false ? "error" : ""}`;
+    }
+
+    function redact(value) {
+      if (value == null) return value;
+      return JSON.parse(JSON.stringify(value, (key, item) => {
+        if (key === "accessToken") return "<redacted>";
+        if (/verifycode/i.test(key)) return "<redacted>";
+        if (/phonenumber/i.test(key) && typeof item === "string") {
+          return item.length >= 7 ? `${item.slice(0, 3)}****${item.slice(-4)}` : "<redacted>";
+        }
+        return item;
+      }));
+    }
+
+    async function apiRequest(path, options = {}, allowError = false) {
+      const url = `${baseUrl()}${path}`;
+      const requestBody = options.body ? JSON.parse(options.body) : null;
+      const response = await fetch(url, options);
+      const raw = await response.text();
+      let body;
+      try { body = JSON.parse(raw); } catch { body = raw; }
+      el.log.textContent = JSON.stringify({
+        request: { url, method: options.method || "GET", body: redact(requestBody) },
+        response: {
+          status: response.status,
+          version: response.headers.get("X-LoginService-Version"),
+          body: redact(body)
+        }
+      }, null, 2);
+      if (!allowError && (!response.ok || body?.success === false)) {
+        throw new Error(body?.message || `HTTP ${response.status}`);
+      }
+      return body;
+    }
+
+    function renderChecks(checks = {}) {
+      const labels = {
+        aliyunCredentialsConfigured: "阿里云 AccessKey",
+        smsSignConfigured: "短信签名",
+        smsTemplateConfigured: "短信模板",
+        databaseConfigured: "MySQL 数据库",
+        databaseReachable: "MySQL 网络与认证",
+        usersTableReady: "users 表读取",
+        usersWriteReady: "users 表写入权限",
+        jwtConfigured: "JWT 密钥",
+        loginReady: "登录服务就绪"
+      };
+      el.checks.innerHTML = Object.entries(labels)
+        .filter(([key]) => Object.prototype.hasOwnProperty.call(checks, key))
+        .map(([key, label]) => {
+        const ok = checks[key] === true;
+        return `<div class="check"><span>${label}</span><strong class="${ok ? "ok" : "error"}">${ok ? "已配置" : "未配置"}</strong></div>`;
+      }).join("");
+    }
+
+    async function checkService() {
+      el.checkButton.disabled = true;
+      el.serviceBadge.className = "badge";
+      el.serviceBadge.textContent = "正在检查";
+      try {
+        const health = await apiRequest("/health");
+        const config = await apiRequest("/health/config", {}, true);
+        renderChecks(config.checks);
+        const versionOk = health.version === EXPECTED_VERSION;
+        el.serviceBadge.className = `badge ${config.checks?.loginReady ? "ok" : "error"}`;
+        el.serviceBadge.textContent = `${health.version || "未知版本"} · ${config.checks?.loginReady ? "已就绪" : "需检查"}`;
+        setMessage(
+          el.serviceMessage,
+          config.checks?.loginReady
+            ? `服务正常${versionOk ? "，版本与测试页一致" : "，但版本与测试页预期不同"}`
+            : config.databaseStatus?.error?.message || config.issues?.join("；") || "服务可访问，但配置尚未完整",
+          config.checks?.loginReady
+        );
+        if (!Object.prototype.hasOwnProperty.call(config.checks || {}, "databaseReachable")) {
+          setMessage(
+            el.serviceMessage,
+            `${el.serviceMessage.textContent}。当前线上健康检查仅确认环境变量存在，不会真实连接数据库。`,
+            config.checks?.loginReady
+          );
+        }
+      } catch (error) {
+        el.serviceBadge.className = "badge error";
+        el.serviceBadge.textContent = "连接失败";
+        setMessage(el.serviceMessage, error.message, false);
+      } finally {
+        el.checkButton.disabled = false;
+      }
+    }
+
+    function loginBody(includeCode) {
+      const body = {
+        countryCode: el.countryCode.value.trim(),
+        phoneNumber: el.phoneNumber.value.trim()
+      };
+      if (includeCode) body.verifyCode = el.verifyCode.value.trim();
+      return body;
+    }
+
+    function validateInput(includeCode) {
+      if (el.countryCode.value.trim() !== "86") throw new Error("当前服务仅支持 countryCode=86");
+      if (!/^1[3-9]\d{9}$/.test(el.phoneNumber.value.trim())) throw new Error("请输入正确的中国大陆手机号");
+      if (includeCode && !/^[0-9A-Za-z]{4,8}$/.test(el.verifyCode.value.trim())) {
+        throw new Error("请输入 4 至 8 位验证码");
+      }
+    }
+
+    function decodeJwtPayload(token) {
+      const segment = token.split(".")[1];
+      if (!segment) throw new Error("JWT 格式无效");
+      const normalized = segment.replace(/-/g, "+").replace(/_/g, "/");
+      const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+      return JSON.parse(decodeURIComponent(escape(atob(padded))));
+    }
+
+    el.checkButton.addEventListener("click", checkService);
+
+    el.sendButton.addEventListener("click", async () => {
+      try {
+        validateInput(false);
+        const masked = `${el.phoneNumber.value.slice(0, 3)}****${el.phoneNumber.value.slice(-4)}`;
+        if (!confirm(`确定向 ${masked} 发送真实短信验证码吗？`)) return;
+        el.sendButton.disabled = true;
+        setMessage(el.loginMessage, "正在发送验证码...", null);
+        const result = await apiRequest("/send-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(loginBody(false))
+        });
+        setMessage(el.loginMessage, `${result.message || "验证码已发送"}，请查看手机短信`, true);
+        el.verifyCode.focus();
+      } catch (error) {
+        setMessage(el.loginMessage, error.message, false);
+      } finally {
+        el.sendButton.disabled = false;
+      }
+    });
+
+    el.loginButton.addEventListener("click", async () => {
+      try {
+        validateInput(true);
+        el.loginButton.disabled = true;
+        setMessage(el.loginMessage, "正在校验验证码并登录...", null);
+        const result = await apiRequest("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(loginBody(true))
+        });
+        const token = result.data?.accessToken;
+        if (!token) throw new Error("登录响应缺少 accessToken");
+        const payload = decodeJwtPayload(token);
+        sessionStorage.setItem("aichatAccessToken", token);
+        el.jwtBadge.className = "badge ok";
+        el.jwtBadge.textContent = "JWT 有效";
+        el.jwtOutput.textContent = JSON.stringify({
+          loginResponse: redact(result),
+          jwtPayload: payload,
+          expiresAt: payload.exp ? new Date(payload.exp * 1000).toLocaleString() : null
+        }, null, 2);
+        setMessage(el.loginMessage, "登录成功，JWT 已保存到当前浏览器会话", true);
+      } catch (error) {
+        el.jwtBadge.className = "badge error";
+        el.jwtBadge.textContent = "登录失败";
+        setMessage(el.loginMessage, error.message, false);
+      } finally {
+        el.loginButton.disabled = false;
+      }
+    });
+
+    checkService();
+  </script>
+</body>
+</html>

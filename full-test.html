@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AIChat API 全链路测试</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "PingFang SC", system-ui, sans-serif; color: #edf2ff; background: #080b15; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 30px 16px; background: radial-gradient(circle at 12% 0%, #30256b 0, transparent 30%), radial-gradient(circle at 90% 20%, #16483e 0, transparent 28%), #080b15; }
+    main { width: min(1080px, 100%); margin: auto; }
+    h1 { margin: 0; font-size: clamp(28px, 5vw, 44px); }
+    .subtitle { color: #aeb8d0; line-height: 1.6; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card { padding: 20px; border: 1px solid #29314b; border-radius: 18px; background: rgba(17, 22, 39, .92); box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+    .wide { grid-column: 1 / -1; }
+    .head, .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+    h2 { margin: 0; font-size: 18px; }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; }
+    .badge { padding: 6px 10px; border-radius: 999px; background: #28304a; color: #cbd5eb; font-size: 12px; font-weight: 800; }
+    .badge.ok { background: rgba(37, 182, 127, .17); color: #75efbf; }
+    .badge.error { background: rgba(230, 72, 91, .18); color: #ff9fac; }
+    label { display: block; margin: 14px 0 6px; color: #cbd5eb; font-size: 13px; font-weight: 750; }
+    input, textarea, select { width: 100%; padding: 11px 12px; border: 1px solid #34405f; border-radius: 10px; background: #0a0f20; color: #f4f6ff; font: inherit; outline: none; }
+    textarea { min-height: 100px; resize: vertical; }
+    input:focus, textarea:focus, select:focus { border-color: #8a74ff; box-shadow: 0 0 0 3px rgba(138,116,255,.17); }
+    .two { display: grid; grid-template-columns: 110px 1fr; gap: 10px; }
+    .actions { justify-content: flex-start; margin-top: 16px; }
+    button { padding: 10px 14px; border: 0; border-radius: 10px; background: linear-gradient(135deg,#856fff,#6252dd); color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
+    button.secondary { background: #2a334d; color: #dbe3f6; }
+    button.danger { background: #a9364d; }
+    button:disabled { opacity: .48; cursor: wait; }
+    .notice, .message { margin-top: 13px; font-size: 13px; line-height: 1.6; color: #aeb8d0; }
+    .notice { padding: 10px 12px; border-radius: 10px; background: rgba(234,181,62,.08); color: #f2c96e; }
+    .message.ok { color: #75efbf; } .message.error { color: #ff9fac; }
+    .role-card { display: grid; grid-template-columns: 54px 1fr; gap: 12px; margin-top: 14px; align-items: center; }
+    .role-card img { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; }
+    .role-card p { margin: 3px 0 0; color: #aeb8d0; font-size: 13px; }
+    .answer, .history { min-height: 90px; max-height: 380px; overflow: auto; margin-top: 14px; padding: 13px; border-radius: 11px; background: #090e1d; white-space: pre-wrap; line-height: 1.65; }
+    .history-item { padding: 9px 0; border-bottom: 1px solid #222c43; }
+    .history-item:last-child { border-bottom: 0; }
+    .history-item strong { color: #8edfc1; }
+    pre { max-height: 440px; overflow: auto; margin: 14px 0 0; padding: 14px; border-radius: 11px; background: #060912; color: #baf2dd; white-space: pre-wrap; word-break: break-word; font: 12px/1.6 ui-monospace, monospace; }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 13px; color: #cbd5eb; font-size: 13px; }
+    .check input { width: auto; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .wide { grid-column: auto; } .two { grid-template-columns: 1fr; gap: 0; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>AIChat API 全链路测试</h1>
+  <p class="subtitle">登录服务、数据库连通性、JWT、角色、Qwen 流式聊天、图片、天气、历史记录与清空聊天。</p>
+
+  <div class="grid">
+    <section class="card wide">
+      <div class="head">
+        <h2>线上服务状态</h2>
+        <div class="badges"><span id="loginBadge" class="badge">Login 检查中</span><span id="loginDbBadge" class="badge">Login DB 检查中</span><span id="chatBadge" class="badge">Chat 检查中</span><span id="chatDbBadge" class="badge">Chat DB 检查中</span><span id="tokenBadge" class="badge">未登录</span></div>
+      </div>
+      <label for="loginBase">LoginService</label>
+      <input id="loginBase" value="https://aichat-login-kemznyglgb.cn-hangzhou.fcapp.run">
+      <label for="chatBase">ChatService</label>
+      <input id="chatBase" value="https://aichat-chat-nitnspniec.cn-hangzhou.fcapp.run">
+      <div class="actions"><button id="checkServices" class="secondary">重新检查服务与数据库</button><button id="logout" class="secondary">清除本地 JWT</button></div>
+      <div class="notice">安全检查不会发送短信、调用 Qwen 或修改数据库。Chat DB 通过公开角色读取进行实连验证；旧版 LoginService 只能确认数据库配置存在，需登录成功才能验证用户表写入。</div>
+      <div id="serviceMessage" class="message"></div>
+    </section>
+
+    <section class="card">
+      <div class="head"><h2>1. 手机号登录</h2></div>
+      <div class="two">
+        <div><label for="countryCode">国家代码</label><input id="countryCode" value="86"></div>
+        <div><label for="phoneNumber">手机号</label><input id="phoneNumber" placeholder="真实测试手机号" inputmode="tel"></div>
+      </div>
+      <label for="verifyCode">验证码</label>
+      <input id="verifyCode" placeholder="收到短信后填写" autocomplete="one-time-code">
+      <div class="notice">发送验证码会真实调用短信服务并可能产生费用。</div>
+      <div class="actions"><button id="sendCode" class="secondary">发送验证码</button><button id="login">登录并保存 JWT</button></div>
+      <div id="loginMessage" class="message"></div>
+    </section>
+
+    <section class="card">
+      <div class="head"><h2>2. 选择角色</h2><button id="loadRoles" class="secondary">刷新角色</button></div>
+      <label for="roleId">预设角色</label>
+      <select id="roleId"></select>
+      <div id="roleCard" class="role-card"><div></div><div>正在加载角色...</div></div>
+      <div id="roleMessage" class="message"></div>
+    </section>
+
+    <section class="card wide">
+      <div class="head"><h2>3. LLM 聊天</h2><span class="badge">支持图片和天气</span></div>
+      <label for="message">消息</label>
+      <textarea id="message" placeholder="例如：杭州现在天气怎么样？"></textarea>
+      <label for="image">图片（可选，JPEG / PNG / WebP）</label>
+      <input id="image" type="file" accept="image/jpeg,image/png,image/webp">
+      <label class="check"><input id="stream" type="checkbox" checked>使用 SSE 流式响应</label>
+      <div class="actions"><button id="sendChat">发送聊天</button></div>
+      <div id="chatMessage" class="message"></div>
+      <div id="answer" class="answer">等待聊天...</div>
+    </section>
+
+    <section class="card">
+      <div class="head"><h2>4. 聊天历史</h2></div>
+      <div class="actions"><button id="loadHistory" class="secondary">获取最近历史</button><button id="loadOlder" class="secondary">加载更早消息</button></div>
+      <div id="historyMessage" class="message"></div>
+      <div id="history" class="history">等待获取...</div>
+    </section>
+
+    <section class="card">
+      <div class="head"><h2>5. 清空当前角色</h2></div>
+      <p class="subtitle">仅清空当前 JWT 用户与当前所选角色的聊天消息。</p>
+      <div class="actions"><button id="clearHistory" class="danger">清空当前聊天</button></div>
+      <div id="clearMessage" class="message"></div>
+    </section>
+
+    <section class="card wide">
+      <div class="head"><h2>最近请求日志</h2></div>
+      <pre id="log">等待操作...</pre>
+    </section>
+  </div>
+</main>
+<script>
+  const EXPECTED_LOGIN = "2026.06.10-jwt.1";
+  const EXPECTED_CHAT = "2026.06.10-auth-chat.1";
+  let accessToken = sessionStorage.getItem("aichatAccessToken") || "";
+  let roles = [];
+  let nextBeforeId = null;
+  const el = Object.fromEntries(["loginBase","chatBase","loginBadge","loginDbBadge","chatBadge","chatDbBadge","tokenBadge","checkServices","logout","serviceMessage","countryCode","phoneNumber","verifyCode","sendCode","login","loginMessage","loadRoles","roleId","roleCard","roleMessage","message","image","stream","sendChat","chatMessage","answer","loadHistory","loadOlder","historyMessage","history","clearHistory","clearMessage","log"].map(id => [id, document.getElementById(id)]));
+
+  function base(input) { return input.value.trim().replace(/\/+$/, ""); }
+  function setMessage(target, text, ok) { target.textContent = text; target.className = `message ${ok === true ? "ok" : ok === false ? "error" : ""}`; }
+  function setBadge(target, text, ok) { target.textContent = text; target.className = `badge ${ok === true ? "ok" : ok === false ? "error" : ""}`; }
+  function redact(value) {
+    if (value == null) return value;
+    return JSON.parse(JSON.stringify(value, (key, item) => {
+      if (key === "accessToken") return "<redacted>";
+      if (/verifycode/i.test(key)) return "<redacted>";
+      if (key === "image") return "<base64 image omitted>";
+      if (/phonenumber/i.test(key) && typeof item === "string") return item.length >= 7 ? `${item.slice(0,3)}****${item.slice(-4)}` : "<redacted>";
+      return item;
+    }));
+  }
+  function log(data) { el.log.textContent = JSON.stringify(redact(data), null, 2); }
+  function authHeaders(json = false) {
+    const headers = {};
+    if (json) headers["Content-Type"] = "application/json";
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    return headers;
+  }
+  async function fetchJson(url, options = {}) {
+    const response = await fetch(url, options);
+    const raw = await response.text();
+    let body; try { body = JSON.parse(raw); } catch { body = raw; }
+    log({ request: { url, method: options.method || "GET", body: options.body ? JSON.parse(options.body) : null }, response: { status: response.status, body } });
+    if (!response.ok || body?.success === false) throw new Error(body?.message || `HTTP ${response.status}`);
+    return body;
+  }
+  function updateTokenBadge() { setBadge(el.tokenBadge, accessToken ? "JWT 已加载" : "未登录", !!accessToken); }
+  function requireToken() { if (!accessToken) throw new Error("请先完成短信登录"); }
+  function selectedRole() { return roles.find(role => String(role.id) === el.roleId.value); }
+  function renderRole() {
+    const role = selectedRole();
+    if (!role) return;
+    el.roleCard.innerHTML = `<img src="${role.avatarUrl}" alt=""><div><strong>${role.nickname}</strong><p>${role.description}</p></div>`;
+  }
+
+  async function checkServices() {
+    el.checkServices.disabled = true;
+    try {
+      const [loginHealth, loginConfig, chatHealth, chatConfig, rolesResult] = await Promise.all([
+        fetchJson(`${base(el.loginBase)}/health`), fetchJson(`${base(el.loginBase)}/health/config`),
+        fetchJson(`${base(el.chatBase)}/health`), fetchJson(`${base(el.chatBase)}/health/config`),
+        fetchJson(`${base(el.chatBase)}/roles`)
+      ]);
+      const loginOk = loginConfig.checks?.loginReady === true;
+      const chatOk = chatConfig.success === true;
+      const loginDbConfigured = loginConfig.checks?.databaseConfigured === true;
+      const loginDbVerified = loginConfig.checks?.databaseReachable === true
+        && loginConfig.checks?.usersTableReady === true
+        && loginConfig.checks?.usersWriteReady === true;
+      const chatRoles = rolesResult.data?.roles || [];
+      const chatDbVerified = chatRoles.length > 0;
+      setBadge(el.loginBadge, `Login ${loginHealth.version}`, loginOk && loginHealth.version === EXPECTED_LOGIN);
+      setBadge(el.chatBadge, `Chat ${chatHealth.version}`, chatOk && chatHealth.version === EXPECTED_CHAT);
+      setBadge(el.loginDbBadge, loginDbVerified ? "Login DB 已实连" : loginDbConfigured ? "Login DB 已配置，未实连" : "Login DB 未配置", loginDbVerified ? true : loginDbConfigured ? null : false);
+      setBadge(el.chatDbBadge, chatDbVerified ? `Chat DB 已实连（${chatRoles.length} 个角色）` : "Chat DB 实连失败", chatDbVerified);
+      const message = loginDbVerified && chatDbVerified
+        ? "两个云函数及数据库均已实际验证"
+        : loginDbConfigured && chatDbVerified
+          ? "ChatService 已实际读取数据库；LoginService 当前版本仅确认 DB 配置存在，完成一次验证码登录后才能验证用户表写入"
+          : "有服务或数据库配置需要检查";
+      const overallState = loginOk && chatOk && chatDbVerified && loginDbVerified
+        ? true
+        : loginOk && chatOk && chatDbVerified && loginDbConfigured
+          ? null
+          : false;
+      setMessage(el.serviceMessage, message, overallState);
+    } catch (error) {
+      setBadge(el.loginDbBadge, "Login DB 检查失败", false);
+      setBadge(el.chatDbBadge, "Chat DB 检查失败", false);
+      setMessage(el.serviceMessage, error.message, false);
+    }
+    finally { el.checkServices.disabled = false; }
+  }
+
+  async function loadRoles() {
+    el.loadRoles.disabled = true;
+    try {
+      const result = await fetchJson(`${base(el.chatBase)}/roles`);
+      roles = result.data?.roles || [];
+      el.roleId.innerHTML = roles.map(role => `<option value="${role.id}">${role.nickname}</option>`).join("");
+      renderRole();
+      setMessage(el.roleMessage, `已加载 ${roles.length} 个角色`, roles.length > 0);
+    } catch (error) { setMessage(el.roleMessage, error.message, false); }
+    finally { el.loadRoles.disabled = false; }
+  }
+
+  function loginBody(includeCode) {
+    const body = { countryCode: el.countryCode.value.trim(), phoneNumber: el.phoneNumber.value.trim() };
+    if (includeCode) body.verifyCode = el.verifyCode.value.trim();
+    return body;
+  }
+  function validateLogin(includeCode) {
+    if (!/^1[3-9]\d{9}$/.test(el.phoneNumber.value.trim())) throw new Error("请输入正确的中国大陆手机号");
+    if (includeCode && !/^[0-9A-Za-z]{4,8}$/.test(el.verifyCode.value.trim())) throw new Error("请输入 4 至 8 位验证码");
+  }
+  function fileDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      if (!file) return resolve(null);
+      const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error("图片读取失败")); reader.readAsDataURL(file);
+    });
+  }
+
+  el.sendCode.addEventListener("click", async () => {
+    try {
+      validateLogin(false);
+      const phone = el.phoneNumber.value.trim(), masked = `${phone.slice(0,3)}****${phone.slice(-4)}`;
+      if (!confirm(`确定向 ${masked} 发送真实短信验证码吗？`)) return;
+      el.sendCode.disabled = true;
+      const result = await fetchJson(`${base(el.loginBase)}/send-code`, { method:"POST", headers:authHeaders(true), body:JSON.stringify(loginBody(false)) });
+      setMessage(el.loginMessage, result.message || "验证码已发送", true);
+    } catch (error) { setMessage(el.loginMessage, error.message, false); }
+    finally { el.sendCode.disabled = false; }
+  });
+  el.login.addEventListener("click", async () => {
+    try {
+      validateLogin(true); el.login.disabled = true;
+      const result = await fetchJson(`${base(el.loginBase)}/login`, { method:"POST", headers:authHeaders(true), body:JSON.stringify(loginBody(true)) });
+      accessToken = result.data?.accessToken || ""; if (!accessToken) throw new Error("登录响应缺少 accessToken");
+      sessionStorage.setItem("aichatAccessToken", accessToken); updateTokenBadge(); setBadge(el.loginDbBadge, "Login DB 已实连", true); setMessage(el.loginMessage, "登录成功，LoginService 用户表写入与 JWT 签发均已验证", true);
+    } catch (error) { setMessage(el.loginMessage, error.message, false); }
+    finally { el.login.disabled = false; }
+  });
+  el.logout.addEventListener("click", () => { accessToken = ""; sessionStorage.removeItem("aichatAccessToken"); updateTokenBadge(); setMessage(el.loginMessage, "本地 JWT 已清除", true); });
+  el.roleId.addEventListener("change", () => { nextBeforeId = null; renderRole(); });
+  el.loadRoles.addEventListener("click", loadRoles);
+  el.checkServices.addEventListener("click", checkServices);
+
+  el.sendChat.addEventListener("click", async () => {
+    try {
+      requireToken(); el.sendChat.disabled = true; el.answer.textContent = ""; setMessage(el.chatMessage, "正在请求模型...", null);
+      const image = await fileDataUrl(el.image.files[0]);
+      const payload = { roleId:Number(el.roleId.value), message:el.message.value.trim(), stream:el.stream.checked };
+      if (image) payload.image = image;
+      if (!payload.message && !payload.image) throw new Error("请输入消息或选择图片");
+      const url = `${base(el.chatBase)}/chat`;
+      const response = await fetch(url, { method:"POST", headers:authHeaders(true), body:JSON.stringify(payload) });
+      if (!response.ok) { const body = await response.json(); log({request:{url,method:"POST",body:payload},response:{status:response.status,body}}); throw new Error(body.message || `HTTP ${response.status}`); }
+      if (!payload.stream) {
+        const body = await response.json(); log({request:{url,method:"POST",body:payload},response:{status:response.status,body}});
+        el.answer.textContent = body.data?.assistantMessage?.content || JSON.stringify(body,null,2);
+      } else {
+        const reader = response.body.getReader(), decoder = new TextDecoder(); let buffer = "", answer = "", eventName = "";
+        while (true) {
+          const {value,done} = await reader.read(); buffer += decoder.decode(value || new Uint8Array(), {stream:!done});
+          const blocks = buffer.split("\n\n"); buffer = blocks.pop() || "";
+          for (const block of blocks) {
+            for (const line of block.split("\n")) {
+              if (line.startsWith("event:")) eventName = line.slice(6).trim();
+              if (!line.startsWith("data:")) continue;
+              const chunk = JSON.parse(line.slice(5).trim());
+              if (eventName === "error") throw new Error(chunk.message || chunk.code);
+              if (eventName === "delta") answer += chunk.content || "";
+              if (eventName === "done" && chunk.assistantMessage?.content) answer = chunk.assistantMessage.content;
+              el.answer.textContent = answer;
+            }
+          }
+          if (done) break;
+        }
+        log({request:{url,method:"POST",body:payload},response:{status:response.status,streamedText:answer}});
+      }
+      setMessage(el.chatMessage, "聊天完成", true);
+    } catch (error) { setMessage(el.chatMessage, error.message, false); if (!el.answer.textContent) el.answer.textContent = "请求失败"; }
+    finally { el.sendChat.disabled = false; }
+  });
+
+  async function loadHistory(beforeId = null, append = false) {
+    try {
+      requireToken(); const params = new URLSearchParams({roleId:el.roleId.value,limit:"50"}); if (beforeId) params.set("beforeId", beforeId);
+      const result = await fetchJson(`${base(el.chatBase)}/history?${params}`, {headers:authHeaders()});
+      const messages = result.data?.messages || []; nextBeforeId = result.data?.nextBeforeId || null;
+      const html = messages.map(item => `<div class="history-item"><strong>${item.sender === "user" ? "我" : selectedRole()?.nickname || "助手"}</strong><div>${item.content.replace(/[&<>]/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[char]))}</div></div>`).join("");
+      el.history.innerHTML = append ? html + el.history.innerHTML : html || "暂无聊天历史";
+      setMessage(el.historyMessage, result.data?.hasMore ? "已加载，可继续加载更早消息" : "已加载全部可用历史", true);
+    } catch (error) { setMessage(el.historyMessage, error.message, false); }
+  }
+  el.loadHistory.addEventListener("click", () => { nextBeforeId = null; loadHistory(); });
+  el.loadOlder.addEventListener("click", () => { if (!nextBeforeId) return setMessage(el.historyMessage, "没有更早消息", false); loadHistory(nextBeforeId, true); });
+  el.clearHistory.addEventListener("click", async () => {
+    try {
+      requireToken(); if (!confirm(`确定清空与“${selectedRole()?.nickname || "当前角色"}”的聊天吗？`)) return;
+      const result = await fetchJson(`${base(el.chatBase)}/history?roleId=${el.roleId.value}`, {method:"DELETE",headers:authHeaders()});
+      el.history.textContent = "暂无聊天历史"; nextBeforeId = null; setMessage(el.clearMessage, `已删除 ${result.data?.deletedCount || 0} 条消息`, true);
+    } catch (error) { setMessage(el.clearMessage, error.message, false); }
+  });
+
+  updateTokenBadge(); checkServices(); loadRoles();
+</script>
+</body>
+</html>
